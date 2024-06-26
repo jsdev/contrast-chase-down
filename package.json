@@ -1,23 +1,22 @@
 {
-  "dependencies": {
-    "@emotion/react": "latest",
-    "@emotion/styled": "latest",
-    "@mui/material": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "typescript": "latest"
-  },
-  "description": "https://github.com/mui/material-ui/blob/v5.15.20/docs/data/material/components/buttons/BasicButtons.tsx",
-  "devDependencies": {
-    "react-scripts": "latest"
-  },
-  "main": "index.tsx",
+  "name": "my-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "build": "react-scripts build",
-    "eject": "react-scripts eject",
-    "start": "react-scripts start",
-    "test": "react-scripts test"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@emotion/styled": "^11.11.5",
+    "@mui/base": "latest",
+    "@mui/material": "latest",
+    "preact": "^10.22.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.8.2",
+    "typescript": "^5.2.2",
+    "vite": "^5.3.1"
   }
 }
