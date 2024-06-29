@@ -9,10 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ctrl/tinycolor": "^4.1.0",
     "@emotion/styled": "^11.11.5",
     "@mui/base": "latest",
     "@mui/material": "latest",
-    "preact": "^10.22.0"
+    "mui-color-input": "^2.0.3",
+    "preact": "^10.22.0",
+    "preact-router": "^4.1.2"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.8.2",

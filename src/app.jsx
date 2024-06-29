@@ -1,6 +1,25 @@
 import { useState, useEffect } from "preact/hooks";
 import Typography from '@mui/material/Typography';
-import { Box, IconButton, FormControl, FormControlLabel, FormLabel, Radio, RadioGroup, Slider, TextField, createTheme } from '@mui/material';
+import { route } from 'preact-router';
+// import { MuiColorInput } from 'mui-color-input'
+import {
+  Box,
+  Button,
+  IconButton,
+  InputLabel,
+  FormControl,
+  FormControlLabel,
+  FormLabel,
+  MenuItem,
+  Radio,
+  RadioGroup,
+  Select,
+  Slider,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  createTheme
+} from '@mui/material';
 import { random, readability, TinyColor } from '@ctrl/tinycolor'; // Import tinycolor library
 import { ThemeProvider } from '@mui/material/styles';
 const theme = createTheme({
@@ -16,6 +35,13 @@ const theme = createTheme({
       styleOverrides: {
         root: {
         color: 'inherit !important',
+        },
+      },
+    },
+    MuiToggleButtonBase: {
+      styleOverrides: {
+        root: {
+        color: 'inherit',
         },
       },
     },  
@@ -58,35 +84,29 @@ const theme = createTheme({
   },
  });
 
- console.log(theme);
-
 const App = () => {
   const [foreground, setForeground] = useState("");
   const [background, setBackground] = useState("");
   const [contrastRatio, setContrastRatio] = useState("");
   const [chosenSuggestion, setChosenSuggestion] = useState("");
-  const [chosenForeground, setChosenForeground] = useState("");
-  const [chosenBackground, setChosenBackground] = useState("");
-  const [chosenContrastRatio, setChosenContrastRatio] = useState("");
   const [foregroundHex, setForegroundHex] = useState("");
   const [backgroundHex, setBackgroundHex] = useState("");
-  const [chosenForegroundHex, setChosenForegroundHex] = useState("");
-  const [chosenbackgroundHex, setChosenBackgroundHex] = useState("");
   const [grid, setGrid] = useState([]);
   const [contrastThreshold, setContrastThreshold] = useState(4.5);
   const [colorType, setColorType] = useState("hex");
   const [errorMessage, setErrorMessage] = useState("");
   const migrate = {
-    cmyk: 'toCmykString',
+    // cmyk: 'toCmykString',
     hex: 'toHexString',
     rgb: 'toRgbString',
     hsl: 'toHslString',
-    hsv: 'toHsvString',
+    // hsv: 'toHsvString',
   };
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     let fg = params.get("fg");
     let bg = params.get("bg");
+    let threshold = parseFloat(params.get("threshold"));
     let fgType = getColorType(fg);
     let bgType = getColorType(bg);
 
@@ -110,8 +130,23 @@ const App = () => {
     bg = (bg || random())[migrate[inferredType]]();
     setForegrounds(fg);
     setBackgrounds(bg);
+    if (threshold) {
+      setContrastThreshold(threshold)
+    }
+    const encodedForeground = encodeURIComponent(foreground);
+    const encodedBackground = encodeURIComponent(background);
+    const encodedThreshold = encodeURIComponent(contrastThreshold);
+
+    route(`?fg=${encodedForeground}&bg=${encodedBackground}&threshold=${encodedThreshold}`, true);
     setContrastRatio(getContrastRatio(fg, bg));
   }, []);
+  function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+      clearTimeout(timeout);
+      timeout = setTimeout(func, wait, ...args);
+    };
+  }
 
   // Use TinyColor for color type detection
   function getColorType(color) {
@@ -140,23 +175,51 @@ const App = () => {
         let newFg = adjustColor(foreground, i);
         let newBg = adjustColor(background, j);
         if (getContrastRatio(newFg, newBg) >= parseFloat(contrastThreshold)) {
+          let score = getContrastRatio(newFg, newBg);
           newGrid.push({
             fg: newFg,
             bg: newBg,
-            score: getContrastRatio(newFg, newBg),
-            label: `FG ${i > 0 ? "+" : ""}${i}, BG ${j > 0 ? "+" : ""}${j}`
+            score,
+            weight: Math.abs(i) + Math.abs(j) + Math.abs(score-contrastThreshold),
+            labelFg: `FG ${i > 0 ? "+" : ""}${i}`,
+            labelBg: `BG ${j > 0 ? "+" : ""}${j}`
           });
         }
       }
     }
 
     if (newGrid.length) {
-      setGrid(newGrid.sort((a,b)=> a.score - b.score));
-      setChosenSuggestion(grid[0]);
-      console.log(grid[0, chosenSuggestion]);
+      let filteredGrid = removeDuplicateScores(newGrid);
+      setGrid(filteredGrid.sort((a,b)=> a.weight - b.weight));
+      setChosenSuggestion(filteredGrid[0]);
+      console.log(filteredGrid[0, chosenSuggestion]);
     } else {
       setGrid([]);
     }
+  };
+
+  const removeDuplicateScores = (arr) => {
+    const uniqueScores = {};
+    return arr.filter(obj => {
+      const key = obj.score;
+      if (!uniqueScores[key]) {
+        uniqueScores[key] = [obj]; // initialize array with the current object
+        return true; // keep
+      }
+      const existingObjs = uniqueScores[key];
+      const hasDuplicateFGorBG = existingObjs.some(
+        o => o.fg === obj.fg || o.bg === obj.bg
+      );
+      if (!hasDuplicateFGorBG) {
+        existingObjs.push(obj); // add the current object to the array
+        return true; // keep
+      }
+      return false; // duplicate, remove
+    });
+  }
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(`color: ${chosenSuggestion.fg}; background-color:${chosenSuggestion.bg}`);
   };
 
   useEffect(() => {
@@ -168,11 +231,20 @@ const App = () => {
     if (isForeground) {
       setForegroundHex(hexColor);
       setForeground(color);
-
-    } else {
-      setBackgroundHex(hexColor);
-      setBackground(color);
+      return
     }
+    setBackgroundHex(hexColor);
+    setBackground(color);
+  };
+
+  const handleSlider = (event) => setContrastThreshold(event.target.value);
+  const debouncedHandleChange = debounce(handleSlider, 100); // 100ms debounce time
+
+  const handleColorTypeSelection = (event) => {
+    let {value} = event.target;
+    setColorType(value);
+    setForeground(convertColor(foreground, value));
+    setBackground(convertColor(background, value));
   };
 
   const handleColorTypeChange = (_event, value) => {
@@ -199,85 +271,108 @@ const App = () => {
     return new TinyColor(color)[migrate[newType]]();
   };
 
+  const marks = {
+    AA: [
+      {
+        value: 3.0,
+        label: 'Minimum Large Text',
+      },
+      {
+        value: 4.5,
+        label: 'Minimum Text',
+      }
+    ],
+    AAA: [
+      {
+        value: 4.5,
+        label: 'Minimum Large Text',
+      },
+      {
+        value: 7.0,
+        label: 'Minimum Text',
+      }
+    ]
+  };
+
   return (
     <ThemeProvider theme={theme}>
     <div style={{ padding: "1rem", fontFamily: "Arial, sans-serif" }}>
       {errorMessage && (
         <div style={{ color: "red", marginBottom: "1rem" }}>{errorMessage}</div>
       )}
-      <section style={{ marginBottom: "1rem", display: "grid", justifyContent:"space-between", gap: "1rem", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr)", alignItems: "center"
-       }}>
+      <section>
+        <ToggleButtonGroup
+          color="primary"
+          value={colorType}
+          exclusive
+          onChange={handleColorTypeChange}
+          aria-label="text alignment"
+        >
+          {Object.keys(migrate).map((type) => (
+            <ToggleButton key={type} value={type}>{type.toUpperCase()}</ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+        <figure>
+          <figcaption class="rancho-regular">Contrast <b>Compass</b></figcaption>
+          <img width="90" height="75" src="compass-companion-120x100.webp" alt=""></img>
+        </figure>
+        <div style={{    display: grid }}>
+        <FormControl style={{display: 'none'}} fullWidth>
+          <InputLabel id="demo-simple-select-label">Type</InputLabel>
+          <Select
+            color="primary"
+            labelId="demo-simple-select-label"
+            id="demo-simple-select"
+            value={colorType}
+            label={colorType.toUpperCase()}
+            onChange={handleColorTypeSelection}
+          >
+            {Object.keys(migrate).map((type) => (
+              <MenuItem key={type} value={type}>{type.toUpperCase()}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+            {/* <MuiColorInput format={colorType} value={foreground} onChange={(value) => debounce(setForegrounds(value),100)} /> */}
         <div>
-          <FormControl component="fieldset">
-            <FormLabel component="legend">Color Format:</FormLabel>
-            <RadioGroup
-              aria-label="color-format"
-              name="color-format-group"
-              value={colorType}
-              onChange={handleColorTypeChange}
-            >
-              {Object.keys(migrate).map((type) => (
-                <FormControlLabel key={type} value={type} control={<Radio />} label={type.toUpperCase()} />
-              ))}
-            </RadioGroup>
-          </FormControl>
-          <div style={{ marginBottom: "1rem" }}>
-          <label
-              htmlFor="foreground"
-              style={{ display: "block", marginBottom: "0.5rem" }}
-            >
-              Foreground Color:
-            </label>
-            <input
-              id="foreground"
-              type="color"
-              value={foregroundHex}
-              onChange={(e) => handleColorChange(e.target.value, true)}
-              style={{ width: "50px", height: "50px", marginRight: "10px" }}
-            />
-            <TextField
-              required
-              type="text"
-              value={foreground}
-              onChange={(e) => setForegrounds(e.target.value)}
-            />
-          </div>
-          <Box>
-            <label
-              htmlFor="background"
-              style={{ display: "block", marginBottom: "0.5rem" }}
-            >
-              Background Color:
-            </label>
-            <input
-              id="background"
-              type="color"
-              value={backgroundHex}
-              onChange={(e) => handleColorChange(e.target.value, false)}
-              style={{ width: "50px", height: "50px", marginRight: "10px" }}
-            />
-            <TextField
-              required
-              type="text"
-              value={background}
-              onChange={(e) => setBackgrounds(e.target.value)}
-            />
-          </Box>
-          <div style={{ marginBottom: "1rem" }}>
-                <Box sx={{ width: 250 }}>
-          <Typography id="non-linear-slider" gutterBottom>
-          Contrast Threshold: {contrastThreshold.toFixed(1)}
-          </Typography>
-          <Slider
-            value={contrastThreshold}
-            min={3}
-            step={0.1}
-            max={21}
-            onChange={(e) => setContrastThreshold(e.target.value)}
-          />
-        </Box>
+            <Box className="colors">
+              <input
+                aria-label="foreground"
+                type="color"
+                value={foregroundHex}
+                onChange={(e) => handleColorChange(e.target.value, true)}
+                style={{ width: "50px", height: "50px", marginRight: "10px" }}
+              />
+                            <input
+                aria-label="background"
+                type="color"
+                value={backgroundHex}
+                onChange={(e) => handleColorChange(e.target.value, false)}
+                style={{ width: "50px", height: "50px", marginRight: "10px" }}
+              />
+              {/* <TextField
+                label={colorType}
+                required
+                type="text"
+                value={foreground}
+                onChange={(e) => setForegrounds(e.target.value)}
+              /> */}
+            </Box>
+            <Box sx={{ width: 160 }}>
+              <Typography id="non-linear-slider" gutterBottom>
+              Threshold: {contrastThreshold.toFixed(1)}
+              </Typography>
+              <Slider
+                value={contrastThreshold}
+                min={3.0}
+                step={0.1}
+                max={21.0}
+                onChange={debouncedHandleChange}
+                valueLabelDisplay="auto"
+              />
+            </Box>
           </div>
           <IconButton
+            style={{display: 'none'}}
             onClick={() => {
               setForegrounds(random()[migrate[colorType]]());
               setBackgrounds(random()[migrate[colorType]]());
@@ -288,51 +383,60 @@ const App = () => {
             </span>
           </IconButton>
         </div>
-        <div
-          style={{
-            border: "0 none",
-            backgroundColor: background,
-            color: foreground,
-            padding: "1rem",
-            textAlign: "center",
-            borderRadius: "0.25rem",
-            height: "100px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            alignItems: "center"
-          }}
-        >
-          <div>Sample Text</div>
-          <div style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>Original Choices</div>
-          <div style={{ fontSize: "0.8rem", marginTop: "0.5rem" }}>
-            {contrastRatio}
+        <div style="height: 100%">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; height: 100%">
+          <Button
+            disabled
+            className="original"
+            style={{
+              backgroundColor: background,
+            }}
+          >
+            <div style={{ fontSize: '18px', color: foreground}}>{contrastRatio}</div>
+            <div style={{ fontSize: '12px', color: foreground, marginTop: '0.5rem' }}>{foreground}</div>
+            <div style={{ fontSize: "12px", color: foreground, marginTop: "0.5rem" }}>{background}</div>
+          </Button>
+        {
+          chosenSuggestion && chosenSuggestion.bg && chosenSuggestion.fg ?
+          <Button
+            onClick={copy}
+            className="suggestion"
+            style={{
+              backgroundColor: chosenSuggestion.bg
+            }}
+          >
+            <div style={{ fontSize: '18px', color: chosenSuggestion.fg}}>{chosenSuggestion.score}</div>
+            <div style={{ fontSize: "12px", color: chosenSuggestion.fg, marginTop: "0.5rem" }}>
+              {chosenSuggestion.fg}
+            </div>
+            <div style={{ fontSize: "12px", color: chosenSuggestion.fg, marginTop: "0.5rem" }}>
+              {chosenSuggestion.bg}
+            </div>
+          </Button> :
+          <div
+            style={{
+              border: "0 none",
+              padding: "1rem",
+              textAlign: "center",
+              borderRadius: "0.25rem",
+              height: "100px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center"
+            }}
+          >
+            <div>Sample Text</div>
+            <div style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>No Preview Available</div>
+            <div style={{ fontSize: "0.8rem", marginTop: "0.5rem" }}>
+            </div>
           </div>
-        </div>
-        <div
-          style={{
-            border: "0 none",
-            backgroundColor: chosenSuggestion.bg,
-            color: chosenSuggestion.fg,
-            padding: "1rem",
-            textAlign: "center",
-            borderRadius: "0.25rem",
-            height: "100px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            alignItems: "center"
-          }}
-        >
-          <div>Sample Text</div>
-          <div style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>Suggestion Preview</div>
-          <div style={{ fontSize: "0.8rem", marginTop: "0.5rem" }}>
-            {chosenSuggestion.score}
+        }
           </div>
         </div>
       </section>
       <FormControl component="fieldset" style={{display: 'block'}}>
-        <FormLabel component="legend">Color Format:</FormLabel>
+        <FormLabel component="legend">Suggestions:</FormLabel>
         <RadioGroup
           aria-label="color-format"
           name="color-format-group"
@@ -340,8 +444,9 @@ const App = () => {
           onChange={handleSuggestionPreview}
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-            gap: "1rem"
+            gridTemplateColumns: "repeat(auto-fill, minmax(50px, 70px))",
+            gap: "1rem",
+            paddingLeft: ".5em"
           }}
         >
         {grid.map((suggestion, index) => {
@@ -352,22 +457,25 @@ const App = () => {
                 border: "0 none",
                 backgroundColor: suggestion.bg,
                 color: suggestion.fg,
-                padding: "1rem",
+                padding: ".5rem",
                 textAlign: "center",
                 borderRadius: "0.25rem",
-                height: "100px",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
                 alignItems: "center"
               }}
               value={index}
-              control={<Radio />} label={
+              control={<Radio style={{display: 'none'}} />} label={
                 <div>
-                  <div>Sample Text</div>
-                    <div style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>{suggestion.label}</div>
-                    <div style={{ fontSize: "0.8rem", marginTop: "0.5rem" }}>
+                  <div style={{ fontSize: '1.5rem', marginTop: '0.5rem' }}>
                     {suggestion.score}
+                  </div>
+                  <div style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                    {suggestion.labelFg}
+                  </div>
+                  <div style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                    {suggestion.labelBg}
                   </div>
                 </div>
               }
@@ -376,6 +484,7 @@ const App = () => {
         })}
           </RadioGroup>
       </FormControl>
+     
     </div>
     </ThemeProvider> 
   );
