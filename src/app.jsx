@@ -296,7 +296,7 @@ const App = () => {
 
   return (
     <ThemeProvider theme={theme}>
-    <div style={{ padding: "1rem", fontFamily: "Arial, sans-serif" }}>
+    <div>
       {errorMessage && (
         <div style={{ color: "red", marginBottom: "1rem" }}>{errorMessage}</div>
       )}
@@ -384,17 +384,21 @@ const App = () => {
           </IconButton>
         </div>
         <div style="height: 100%">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; height: 100%">
+          <div style="display: grid; grid-template-columns: 1fr; height: 100%">
           <Button
             disabled
             className="original"
             style={{
               backgroundColor: background,
+              display: 'grid !important',
+              gridTemplateColumns: '50px 1fr'
             }}
           >
             <div style={{ fontSize: '18px', color: foreground}}>{contrastRatio}</div>
-            <div style={{ fontSize: '12px', color: foreground, marginTop: '0.5rem' }}>{foreground}</div>
-            <div style={{ fontSize: "12px", color: foreground, marginTop: "0.5rem" }}>{background}</div>
+            <div style={{ fontSize: '12px', color: foreground, marginTop: '0.5rem' }}>
+              <div>{foreground}</div>
+              <div>{background}</div>
+            </div>
           </Button>
         {
           chosenSuggestion && chosenSuggestion.bg && chosenSuggestion.fg ?
@@ -402,15 +406,15 @@ const App = () => {
             onClick={copy}
             className="suggestion"
             style={{
-              backgroundColor: chosenSuggestion.bg
+              backgroundColor: chosenSuggestion.bg,
+              display: 'grid !important',
+              gridTemplateColumns: '50px 1fr'
             }}
           >
             <div style={{ fontSize: '18px', color: chosenSuggestion.fg}}>{chosenSuggestion.score}</div>
-            <div style={{ fontSize: "12px", color: chosenSuggestion.fg, marginTop: "0.5rem" }}>
-              {chosenSuggestion.fg}
-            </div>
-            <div style={{ fontSize: "12px", color: chosenSuggestion.fg, marginTop: "0.5rem" }}>
-              {chosenSuggestion.bg}
+            <div style={{ fontSize: '12px', color: foreground, marginTop: '0.5rem' }}>
+              <div>{chosenSuggestion.fg}</div>
+              <div>{chosenSuggestion.bg}</div>
             </div>
           </Button> :
           <div
@@ -435,7 +439,7 @@ const App = () => {
           </div>
         </div>
       </section>
-      <FormControl component="fieldset" style={{display: 'block'}}>
+      <FormControl component="fieldset" style={{display: 'block', width: '110%'}}>
         <FormLabel component="legend">Suggestions:</FormLabel>
         <RadioGroup
           aria-label="color-format"

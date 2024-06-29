@@ -50,10 +50,11 @@ border: 0 none;
 padding: 1rem;
 text-align: center;
 height: 100%;
-display: flex;
+display: grid !important;
 flex-direction: column;
 justify-content: center;
-align-items: center
+align-items: center;
+grid-template-columns: 100px 1fr;
 }
 
 h1 {
